@@ -201,7 +201,7 @@ type EventUpdateInput = Partial<EventInput>;
 const UPDATABLE_FIELDS: {
   key: keyof EventInput;
   column: string;
-  serialize?: (value: unknown) => unknown;
+  serialize?: (value: unknown) => string;
 }[] = [
   { key: 'type', column: 'type' },
   { key: 'eventDate', column: 'event_date' },
@@ -223,12 +223,19 @@ export async function updateEvent(
   const before = await getEventById(caseId, eventId);
 
   const setClauses: string[] = [];
-  const params: Record<string, unknown> = { caseId, eventId };
+  const params: Record<string, string | number | boolean | null> = { caseId, eventId };
 
   for (const { key, column, serialize } of UPDATABLE_FIELDS) {
     if (input[key] !== undefined) {
       setClauses.push(`${column} = :${key}`);
-      params[key] = serialize ? serialize(input[key]) : input[key];
+      // findingsSummary is typed unknown (free-form JSON) on EventInput,
+      // which — being keyof-indexed alongside the other, concrete-typed
+      // fields — collapses this whole expression's inferred type down to
+      // unknown. UPDATABLE_FIELDS guarantees findingsSummary always goes
+      // through serialize (-> string) and every other field is already
+      // one of string/number/boolean/null, so this cast just states what
+      // is already true by construction.
+      params[key] = (serialize ? serialize(input[key]) : input[key]) as string | number | boolean | null;
     }
   }
 

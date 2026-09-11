@@ -150,7 +150,7 @@ export async function updateCase(caseId: number, input: UpdateCaseInput, actorId
   const before = await getCaseById(caseId);
 
   const setClauses: string[] = [];
-  const params: Record<string, unknown> = { caseId };
+  const params: Record<string, string | number | boolean | null> = { caseId };
 
   for (const { key, column } of UPDATABLE_FIELDS) {
     if (input[key] !== undefined) {

@@ -20,7 +20,8 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "mysql2": "^3.11.3",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "google-auth-library": "^9.14.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -30,6 +31,7 @@
     "@types/node": "^20.14.15",
     "nodemon": "^3.1.4",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "@types/bcryptjs": "^2.4.6"
   }
 }

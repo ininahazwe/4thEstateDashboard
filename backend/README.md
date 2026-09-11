@@ -20,6 +20,35 @@ Remplis `.env` avec les identifiants de ta base cPanel (`DB_HOST`, `DB_USER`,
 > pour ton IP, soit démarrer une base MySQL locale pour le développement et
 > pointer `.env` dessus.
 
+> **Migration BDD** : si tu avais déjà importé le `schema.sql` initial, importe aussi `migration_002_native_contacts.sql` dans phpMyAdmin (remplace les tables de contacts prévues pour une "Contact Platform" externe par un répertoire de contacts natif à cette plateforme).
+
+> Importe aussi `migration_003_google_auth.sql` (ajoute les colonnes Google `google_id`/`avatar_url`/`auth_provider` à `users` et rend `password_hash` optionnel).
+
+## Authentification Google
+
+L'interface se connecte via "Se connecter avec Google" (OAuth 2.0, flux
+authorization code). Configuration côté [Google Cloud Console](https://console.cloud.google.com/apis/credentials) :
+
+1. Créer (ou réutiliser) un OAuth client ID de type **Application Web**.
+2. Dans **URI de redirection autorisés**, ajouter exactement l'URL de
+   `GOOGLE_CALLBACK_URL` de ton `.env` (ex. `http://localhost:4000/api/auth/google/callback`
+   en dev). Cette valeur doit correspondre au caractère près.
+3. Renseigner dans `backend/.env` : `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   `GOOGLE_CALLBACK_URL`, et `GOOGLE_ALLOWED_DOMAIN` (laisser `mfwa.org` pour
+   n'autoriser que les comptes Google Workspace de l'organisation, ou vider
+   la valeur pour accepter n'importe quel compte Google).
+
+Le premier compte Google `@mfwa.org` qui se connecte est créé
+automatiquement (voir `handleGoogleCallback` dans `auth.service.ts`). Il n'y
+a donc plus besoin de `create-user` pour l'usage normal — ce script reste
+disponible pour créer un compte local de secours si besoin (l'endpoint
+`POST /api/auth/login` existe toujours côté API, simplement plus affiché
+dans l'UI).
+
+⚠️ N'ajoute jamais le `GOOGLE_CLIENT_SECRET` ni aucune valeur de `.env` dans un
+message ou un fichier suivi par Git — `.env` est dans `.gitignore`, modifie-le
+directement en local.
+
 ## Créer le premier utilisateur
 
 Il n'y a pas d'inscription publique — le premier compte se crée en CLI :
@@ -65,6 +94,20 @@ curl -X POST http://localhost:4000/api/cases/<CASE_ID>/events \
 curl http://localhost:4000/api/cases/<CASE_ID>/events -H "Authorization: Bearer <TOKEN>"
 ```
 
+```bash
+# 6. Creer un contact
+curl -X POST http://localhost:4000/api/contacts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"fullName":"Jane Doe","organization":"Ministere de la Sante"}'
+
+# 7. Rattacher un contact au dossier (remplace <CASE_ID> et <CONTACT_ID>)
+curl -X POST http://localhost:4000/api/cases/<CASE_ID>/contacts \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{"contactId":<CONTACT_ID>}'
+```
+
 ## Structure
 
 ```
@@ -75,6 +118,7 @@ src/
     auth/      login
     cases/     CRUD des dossiers d'enquête (cases)
     events/    CRUD des événements d'enquête (investigation_events)
+    contacts/  CRUD du répertoire de contacts
   scripts/     utilitaires CLI (création du premier utilisateur)
   app.ts       config Express (middlewares, montage des routes)
   server.ts    point d'entrée (connexion DB + app.listen)
@@ -84,14 +128,22 @@ src/
 
 - [x] CRUD `cases` (create/list/get/update/delete-soft) avec rôles par dossier
 - [x] Audit log de base (create/read/update/delete sur les cases)
-- [x] Auth minimale (email + mot de passe -> JWT)
+- [x] Auth Google OAuth (JWT emis apres connexion Google, restreint au domaine mfwa.org)
 - [x] CRUD `investigation_events` (timeline par dossier, liens vers des contacts)
-- [ ] Import/synchro des contacts depuis Contact Platform
-- [ ] Dashboard front (Vite + React)
+- [x] Repertoire de contacts natif (CRUD + rattachement a des dossiers)
+- [x] Dashboard front minimal (Vite + React) — voir ../frontend/README.md
 
 ## Notes de sécurité
 
-L'auth email/mot de passe + JWT est volontairement minimale pour débloquer le
-développement local. Le brief (§5.2) prévoit à terme OAuth via Google
-Workspace MFWA et le 2FA pour les dossiers "très sensible" — ce sera à
-brancher avant toute mise en production réelle avec des données sensibles.
+L'authentification se fait via Google OAuth (brief §5.2), restreinte au
+domaine `GOOGLE_ALLOWED_DOMAIN`. La protection CSRF du flux OAuth repose sur
+un paramètre `state` auto-vérifiable (signé avec `JWT_SECRET`, valide 10
+minutes) plutôt que sur une session serveur — suffisant pour l'usage actuel,
+à revisiter si l'app devient multi-instance derrière un load balancer sans
+secret partagé. Le 2FA pour les dossiers "très sensible" (toujours §5.2)
+reste à faire avant toute mise en production avec des données réellement
+sensibles.
+
+L'endpoint `POST /api/auth/login` (email + mot de passe) reste disponible côté
+API pour des comptes locaux de secours, mais n'est plus exposé dans
+l'interface.
