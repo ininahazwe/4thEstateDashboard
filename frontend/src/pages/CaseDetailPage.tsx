@@ -48,7 +48,11 @@ export function CaseDetailPage() {
 
   async function handleCreateEvent(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    // Same gotcha as CasesListPage.handleCreate: capture the form element
+    // before the first await, since React nulls event.currentTarget once
+    // the synthetic event finishes dispatching.
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
     const type = String(form.get('type') ?? '');
     const eventDateLocal = String(form.get('eventDate') ?? '');
     const reason = String(form.get('reason') ?? '');
@@ -62,7 +66,7 @@ export function CaseDetailPage() {
         reason: reason || undefined,
       });
       setShowForm(false);
-      e.currentTarget.reset();
+      formEl.reset();
       loadAll();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Impossible d'ajouter l'événement");

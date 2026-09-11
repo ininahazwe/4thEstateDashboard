@@ -30,7 +30,13 @@ export function CasesListPage() {
 
   async function handleCreate(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    // Capture the form element before the first await: React nulls out
+    // event.currentTarget once the synthetic event finishes dispatching,
+    // which happens synchronously — by the time an awaited call resolves,
+    // e.currentTarget is already null and .reset() on it throws, landing
+    // in the catch block below even though the POST itself succeeded.
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
     const title = String(form.get('title') ?? '').trim();
     const sensitivity = String(form.get('sensitivity') ?? 'internal') as Sensitivity;
     if (!title) return;
@@ -38,7 +44,7 @@ export function CasesListPage() {
     try {
       await api.post('/cases', { title, sensitivity });
       setShowForm(false);
-      e.currentTarget.reset();
+      formEl.reset();
       loadCases();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Création impossible');
