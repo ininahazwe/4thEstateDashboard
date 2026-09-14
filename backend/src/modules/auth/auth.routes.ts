@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { asyncHandler } from '../../utils/asyncHandler';
 import { requireAuth } from '../../middleware/auth';
-import { googleCallbackHandler, googleRedirectHandler, loginHandler, meHandler } from './auth.controller';
+import {
+  googleCallbackHandler,
+  googleRedirectHandler,
+  loginHandler,
+  meHandler,
+  panicHandler,
+} from './auth.controller';
 
 export const authRouter = Router();
 
@@ -23,3 +29,7 @@ authRouter.get('/me', requireAuth, asyncHandler(meHandler));
 // the UI) but left in place: useful for scripts/tooling, and for any
 // account that only has a local password set.
 authRouter.post('/login', asyncHandler(loginHandler));
+
+// POST /api/auth/panic -> signs the caller out of every device immediately
+// (brief §5, "mode panique"). See requireAuth in middleware/auth.ts.
+authRouter.post('/panic', requireAuth, asyncHandler(panicHandler));

@@ -5,11 +5,11 @@ export function LoginPage() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>4thestate Dashboard</h1>
-        <p className="auth-subtitle">Connexion</p>
+        <p className="auth-subtitle">Sign in</p>
 
         <a className="btn-google" href={`${API_URL}/auth/google`}>
           <GoogleIcon />
-          Se connecter avec Google
+          Sign in with Google
         </a>
       </div>
     </div>

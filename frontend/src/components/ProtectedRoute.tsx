@@ -6,7 +6,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   const { token, loading } = useAuth();
 
   if (loading) {
-    return <div className="page-loading">Chargement...</div>;
+    return <div className="page-loading">Loading...</div>;
   }
 
   if (!token) {

@@ -16,14 +16,27 @@ interface UserRow extends RowDataPacket {
   is_active: number;
 }
 
-function issueToken(user: { id: number; email: string; full_name: string }) {
-  // JWT_EXPIRES_IN comes from an env var, so it is a plain string at the type
+// `extra.totpVerifiedAt` is how a 2FA step-up (brief §5.2, see
+// modules/auth/twoFactor.service.ts) gets carried in the token: a case
+// route gated behind "highly_sensitive" checks this claim's recency rather
+// than re-deriving it, so re-issuing the token here is the only place that
+// claim is ever set.
+export function issueToken(
+  user: { id: number; email: string; full_name: string },
+  extra?: { totpVerifiedAt?: number }
+) {
+  // JWT_EXPIRES_IN comes from an ..env var, so it is a plain string at the type
   // level. types/jsonwebtoken wants a narrower literal type (e.g. '8h') for
   // SignOptions.expiresIn, which a runtime-provided string can never satisfy
   // structurally -- cast the options object rather than fight the overloads.
   const options = { expiresIn: env.JWT_EXPIRES_IN } as jwt.SignOptions;
   return jwt.sign(
-    { id: user.id, email: user.email, fullName: user.full_name },
+    {
+      id: user.id,
+      email: user.email,
+      fullName: user.full_name,
+      ...(extra?.totpVerifiedAt ? { totpVerifiedAt: extra.totpVerifiedAt } : {}),
+    },
     env.JWT_SECRET,
     options
   );
@@ -158,4 +171,14 @@ export async function handleGoogleCallback(code: string, state: string | undefin
   }
 
   return issueToken(user);
+}
+
+// Panic mode (brief §5, "mode panique"): immediately invalidates every
+// existing session for this user, everywhere -- see requireAuth in
+// middleware/auth.ts for how sessions_invalidated_at is enforced. Deliberately
+// per-user rather than a global kill switch: there's no admin/superuser
+// concept anywhere else in this app, and a compromised device only ever
+// belongs to one account.
+export async function triggerPanicMode(userId: number): Promise<void> {
+  await pool.query('UPDATE users SET sessions_invalidated_at = NOW() WHERE id = :userId', { userId });
 }

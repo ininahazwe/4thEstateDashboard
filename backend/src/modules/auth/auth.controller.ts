@@ -7,7 +7,9 @@ import {
   getGoogleAuthUrl,
   handleGoogleCallback,
   login,
+  triggerPanicMode,
 } from './auth.service';
+import { getTotpStatus } from './twoFactor.service';
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -47,5 +49,14 @@ export async function googleCallbackHandler(req: Request, res: Response) {
 }
 
 export async function meHandler(req: Request, res: Response) {
-  res.json(req.user);
+  // totpEnabled isn't in the JWT (it can change independently of it) --
+  // the frontend needs it to know whether to prompt for 2FA enrollment on
+  // the Security page.
+  const { enabled: totpEnabled } = await getTotpStatus(req.user!.id);
+  res.json({ ...req.user, totpEnabled });
+}
+
+export async function panicHandler(req: Request, res: Response) {
+  await triggerPanicMode(req.user!.id);
+  res.status(204).send();
 }

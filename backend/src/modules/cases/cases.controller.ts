@@ -36,7 +36,10 @@ export async function createCaseHandler(req: Request, res: Response) {
 
 export async function getCaseHandler(req: Request, res: Response) {
   const caseItem = await getCaseById(Number(req.params.id), req.user!.id);
-  res.json(caseItem);
+  // requireCaseRole (mounted on this route) already resolved the caller's
+  // role; surface it so the frontend can show lead-only controls (e.g.
+  // contributor management) without a second request.
+  res.json({ ...caseItem, myRole: req.caseRole });
 }
 
 export async function updateCaseHandler(req: Request, res: Response) {

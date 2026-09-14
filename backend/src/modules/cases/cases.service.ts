@@ -3,6 +3,18 @@ import { pool } from '../../config/db';
 import { AppError } from '../../utils/AppError';
 import { recordAudit } from '../../middleware/auditLog';
 import { CaseStatus, Sensitivity } from './cases.types';
+import { listCaseContributorIds } from './caseContributors.service';
+import { notifyUsers, getUserFullName } from '../notifications/notifications.service';
+
+// Ordering used to detect a sensitivity *increase* (brief §2.3 "Sensibilité
+// augmentée : un cas passe de 'interne' à 'très sensible'") — a decrease
+// isn't worth a notification.
+const SENSITIVITY_RANK: Record<Sensitivity, number> = {
+  public: 0,
+  internal: 1,
+  confidential: 2,
+  highly_sensitive: 3,
+};
 
 interface CaseRow extends RowDataPacket {
   id: number;
@@ -16,6 +28,13 @@ interface CaseRow extends RowDataPacket {
   created_by: number;
   created_at: string;
   updated_at: string;
+}
+
+interface CaseTagRow extends RowDataPacket {
+  case_id: number;
+  id: number;
+  name: string;
+  type: 'theme' | 'tag';
 }
 
 function mapCase(row: CaseRow) {
@@ -101,7 +120,28 @@ export async function listCasesForUser(userId: number) {
     { userId }
   );
 
-  return rows.map(mapCase);
+  if (rows.length === 0) return [];
+
+  // Tags weren't shown on the list view yet (only on the case detail page)
+  // — fetched here in one batched query rather than per-card, so the list
+  // page doesn't turn into an N+1.
+  const caseIds = rows.map((r) => r.id);
+  const [tagRows] = await pool.query<CaseTagRow[]>(
+    `SELECT ct.case_id, t.id, t.name, t.type
+     FROM case_tags ct
+     JOIN tags t ON t.id = ct.tag_id
+     WHERE ct.case_id IN (:caseIds)
+     ORDER BY t.type ASC, t.name ASC`,
+    { caseIds }
+  );
+  const tagsByCase = new Map<number, { id: number; name: string; type: 'theme' | 'tag' }[]>();
+  for (const row of tagRows) {
+    const list = tagsByCase.get(row.case_id) ?? [];
+    list.push({ id: row.id, name: row.name, type: row.type });
+    tagsByCase.set(row.case_id, list);
+  }
+
+  return rows.map((row) => ({ ...mapCase(row), tags: tagsByCase.get(row.id) ?? [] }));
 }
 
 export async function getCaseById(caseId: number, readerId?: number) {
@@ -176,6 +216,21 @@ export async function updateCase(caseId: number, input: UpdateCaseInput, actorId
     before,
     after,
   });
+
+  if (SENSITIVITY_RANK[after.sensitivity] > SENSITIVITY_RANK[before.sensitivity]) {
+    const contributorIds = await listCaseContributorIds(caseId);
+    const actorName = await getUserFullName(actorId);
+    await notifyUsers(contributorIds, 'sensitivity_increased', {
+      actorId,
+      payload: {
+        caseId,
+        caseTitle: after.title,
+        from: before.sensitivity,
+        to: after.sensitivity,
+        actorName,
+      },
+    });
+  }
 
   return after;
 }

@@ -1,10 +1,17 @@
 import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import multer from 'multer';
 import { AppError } from '../utils/AppError';
 
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ZodError) {
     return res.status(400).json({ error: 'Validation failed', details: err.flatten() });
+  }
+
+  if (err instanceof multer.MulterError) {
+    // e.g. LIMIT_FILE_SIZE when an upload exceeds caseDocuments.routes.ts's
+    // MAX_FILE_SIZE — a client mistake, not a server failure.
+    return res.status(400).json({ error: err.message });
   }
 
   if (err instanceof AppError) {

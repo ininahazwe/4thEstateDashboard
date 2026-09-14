@@ -22,13 +22,13 @@ export function AuthCallbackPage() {
     }
 
     if (!token) {
-      setError('Aucun token reçu.');
+      setError('No token received.');
       return;
     }
 
     loginWithToken(token)
       .then(() => navigate('/cases', { replace: true }))
-      .catch(() => setError('La connexion a échoué.'));
+      .catch(() => setError('Sign-in failed.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
@@ -39,11 +39,11 @@ export function AuthCallbackPage() {
           <>
             <p className="form-error">{error}</p>
             <a className="btn-secondary" href="/login">
-              Réessayer
+              Try again
             </a>
           </>
         ) : (
-          <p>Connexion en cours...</p>
+          <p>Signing in...</p>
         )}
       </div>
     </div>

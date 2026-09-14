@@ -4,6 +4,7 @@ import { AppError } from '../../utils/AppError';
 import { recordAudit } from '../../middleware/auditLog';
 import { EventType, FollowUpStatus } from './events.types';
 import { Sensitivity } from '../cases/cases.types';
+import { toMysqlDateTime } from '../../utils/toMysqlDateTime';
 
 interface EventRow extends RowDataPacket {
   id: number;
@@ -24,7 +25,7 @@ interface EventRow extends RowDataPacket {
 
 interface EventContactRow extends RowDataPacket {
   event_id: number;
-  contact_external_id: number;
+  contact_id: number;
 }
 
 function mapEvent(row: EventRow, contactIds: number[]) {
@@ -50,10 +51,10 @@ function mapEvent(row: EventRow, contactIds: number[]) {
 
 async function getContactIds(eventId: number): Promise<number[]> {
   const [rows] = await pool.query<EventContactRow[]>(
-    'SELECT contact_external_id FROM event_contacts WHERE event_id = :eventId',
+    'SELECT contact_id FROM event_contacts WHERE event_id = :eventId',
     { eventId }
   );
-  return rows.map((r) => r.contact_external_id);
+  return rows.map((r) => r.contact_id);
 }
 
 async function assertCaseExists(caseId: number) {
@@ -70,7 +71,7 @@ async function setEventContacts(conn: import('mysql2/promise').PoolConnection, e
   await conn.query('DELETE FROM event_contacts WHERE event_id = :eventId', { eventId });
   for (const contactId of contactIds) {
     await conn.query(
-      'INSERT INTO event_contacts (event_id, contact_external_id) VALUES (:eventId, :contactId)',
+      'INSERT INTO event_contacts (event_id, contact_id) VALUES (:eventId, :contactId)',
       { eventId, contactId }
     );
   }
@@ -106,7 +107,7 @@ export async function createEvent(caseId: number, input: EventInput, actorId: nu
       {
         caseId,
         type: input.type,
-        eventDate: input.eventDate,
+        eventDate: toMysqlDateTime(input.eventDate),
         location: input.location ?? null,
         locationLat: input.locationLat ?? null,
         locationLng: input.locationLng ?? null,
@@ -158,14 +159,14 @@ export async function listEventsForCase(caseId: number) {
 
   const eventIds = rows.map((r) => r.id);
   const [contactRows] = await pool.query<EventContactRow[]>(
-    'SELECT event_id, contact_external_id FROM event_contacts WHERE event_id IN (:eventIds)',
+    'SELECT event_id, contact_id FROM event_contacts WHERE event_id IN (:eventIds)',
     { eventIds }
   );
 
   const contactsByEvent = new Map<number, number[]>();
   for (const row of contactRows) {
     const list = contactsByEvent.get(row.event_id) ?? [];
-    list.push(row.contact_external_id);
+    list.push(row.contact_id);
     contactsByEvent.set(row.event_id, list);
   }
 
@@ -204,7 +205,7 @@ const UPDATABLE_FIELDS: {
   serialize?: (value: unknown) => string;
 }[] = [
   { key: 'type', column: 'type' },
-  { key: 'eventDate', column: 'event_date' },
+  { key: 'eventDate', column: 'event_date', serialize: (v) => toMysqlDateTime(v as string) },
   { key: 'location', column: 'location' },
   { key: 'locationLat', column: 'location_lat' },
   { key: 'locationLng', column: 'location_lng' },

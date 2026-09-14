@@ -1,0 +1,16 @@
+-- =====================================================================
+-- Migration 004 — NON NECESSAIRE, laissee ici a titre d'historique
+--
+-- Cette migration n'a jamais ete importee : la table `notifications`
+-- existait deja dans la base (probablement table #19 du schema.sql
+-- initial, jamais listee dans le brief §3.1 mais bien presente en base),
+-- avec une structure differente et plus simple que celle envisagee ici
+-- (colonnes user_id / type / payload / is_read / created_at, sans
+-- case_id/resource_type/resource_id/actor_id separes — ces informations
+-- sont stockees directement dans le JSON `payload`).
+--
+-- Le module backend `notifications` a ete adapte a la table existante
+-- plutot que l'inverse. Ne PAS executer ce script : la table existe deja
+-- et ce CREATE TABLE echouerait (ou pire, entrerait en conflit si le nom
+-- etait reutilise).
+-- =====================================================================
