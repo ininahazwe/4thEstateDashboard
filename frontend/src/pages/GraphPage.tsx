@@ -1,11 +1,10 @@
+import { PageHead, ScopeTag } from '../components/PageHead';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as d3 from 'd3';
 import { api } from '../api/client';
 import { ApiError } from '../api/client';
 import { GraphData, GraphEdgeType, GraphNode, GraphNodeType } from '../api/types';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../auth/AuthContext';
 
 // Relationship graph (brief §1.5). Auto-derived on the backend from data
 // that already exists elsewhere (contacts <-> cases/events, tags, comment
@@ -25,11 +24,11 @@ const NODE_TYPE_LABELS: Record<GraphNodeType, string> = {
 // in styles.css) — case and event reuse those exact colors, contact/tag/
 // location are new but picked from the same palette.
 const NODE_TYPE_COLORS: Record<GraphNodeType, string> = {
-  case: '#6b7280',
-  event: '#2563eb',
-  contact: '#059669',
-  tag: '#7c3aed',
-  location: '#b45309',
+  case: '#1B1B1A',
+  event: '#5E6B7A',
+  contact: '#46614F',
+  tag: '#6E5C82',
+  location: '#8A6722',
 };
 
 const EDGE_TYPE_LABELS: Record<GraphEdgeType, string> = {
@@ -95,8 +94,7 @@ function computeClusters(nodes: GraphNode[], edgePairs: { source: string; target
 }
 
 export function GraphPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const caseId = searchParams.get('caseId');
 
@@ -193,7 +191,7 @@ export function GraphPage() {
 
     const link = root
       .append('g')
-      .attr('stroke', '#c4c9d4')
+      .attr('stroke', '#D8D5CC')
       .selectAll<SVGLineElement, SimLink>('line')
       .data(simLinks)
       .join('line')
@@ -256,7 +254,7 @@ export function GraphPage() {
       .attr('font-size', 10)
       .attr('dx', 12)
       .attr('dy', 4)
-      .attr('fill', '#3a3f47')
+      .attr('fill', '#1B1B1A')
       .style('pointer-events', 'none');
 
     selectionsRef.current = { node, link, label };
@@ -316,26 +314,17 @@ export function GraphPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>Relationship graph</h1>
-          {caseId ? (
-            <Link to={`/cases/${caseId}`} className="back-link">
-              &larr; Back to case
-            </Link>
-          ) : (
-            <Link to="/cases" className="back-link">
-              &larr; My cases
-            </Link>
-          )}
-        </div>
-        <div className="page-header-actions">
-          <Link to="/search" className="btn-secondary">Search</Link>
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead
+        title="Graph"
+        sub={
+          caseId ? (
+            <>
+              <Link to={`/cases/${caseId}`} className="ws-filter-tag">Back to case</Link>
+              <ScopeTag to="/graph">This case only</ScopeTag>
+            </>
+          ) : undefined
+        }
+      />
 
       <p className="graph-hint">
         {caseId

@@ -12,6 +12,7 @@ import { PortfolioPage } from './pages/PortfolioPage';
 import { EditorialProjectDetailPage } from './pages/EditorialProjectDetailPage';
 import { SecuritySettingsPage } from './pages/SecuritySettingsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AppShell } from './components/AppShell';
 
 export default function App() {
   return (
@@ -46,7 +47,7 @@ export default function App() {
         path="/search"
         element={
           <ProtectedRoute>
-            <SearchPage />
+            <AppShell activeRail="search"><SearchPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -54,7 +55,7 @@ export default function App() {
         path="/graph"
         element={
           <ProtectedRoute>
-            <GraphPage />
+            <AppShell activeNav="graph"><GraphPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -62,7 +63,7 @@ export default function App() {
         path="/map"
         element={
           <ProtectedRoute>
-            <MapPage />
+            <AppShell activeRail="map"><MapPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -70,7 +71,7 @@ export default function App() {
         path="/calendar"
         element={
           <ProtectedRoute>
-            <CalendarPage />
+            <AppShell activeRail="calendar"><CalendarPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -78,7 +79,7 @@ export default function App() {
         path="/portfolio"
         element={
           <ProtectedRoute>
-            <PortfolioPage />
+            <AppShell activeNav="portfolio"><PortfolioPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -86,7 +87,7 @@ export default function App() {
         path="/editorial-projects/:projectId"
         element={
           <ProtectedRoute>
-            <EditorialProjectDetailPage />
+            <AppShell activeNav="portfolio"><EditorialProjectDetailPage /></AppShell>
           </ProtectedRoute>
         }
       />
@@ -94,7 +95,7 @@ export default function App() {
         path="/security"
         element={
           <ProtectedRoute>
-            <SecuritySettingsPage />
+            <AppShell activeRail="security"><SecuritySettingsPage /></AppShell>
           </ProtectedRoute>
         }
       />

@@ -1,3 +1,4 @@
+import { Icon } from './icons';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
@@ -113,10 +114,11 @@ export function NotificationsBell() {
       <button
         type="button"
         onClick={handleToggle}
-        className="btn-secondary notifications-bell-toggle"
+        className="ws-circle notifications-bell-toggle"
         aria-label="Notifications"
       >
-        Notifications{unreadCount > 0 && <span className="notifications-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
+        <Icon name="bell" size={17} />
+        {unreadCount > 0 && <span className="notifications-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
       {open && (
         <div className="notifications-dropdown">

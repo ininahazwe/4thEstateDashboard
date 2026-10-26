@@ -1,3 +1,4 @@
+import { PageHead } from '../components/PageHead';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -10,8 +11,6 @@ import {
   ProjectMilestone,
   ProjectStatus,
 } from '../api/types';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../auth/AuthContext';
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   pitch: 'Pitch',
@@ -40,8 +39,7 @@ const MILESTONE_STATUS_LABELS: Record<MilestoneStatus, string> = {
 export function EditorialProjectDetailPage() {
   const { projectId } = useParams();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-
+  
   const [project, setProject] = useState<EditorialProject | null>(null);
   const [myCases, setMyCases] = useState<CaseSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -267,19 +265,11 @@ export function EditorialProjectDetailPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>{project.title}</h1>
-          <Link to="/portfolio" className="back-link">
-            &larr; Portfolio
-          </Link>
-        </div>
-        <div className="page-header-actions">
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead
+        entity
+        title={project.title}
+        sub={project.targetPublication ? <span className="ws-head-meta">{project.targetPublication}</span> : undefined}
+      />
 
       <div className="page-toolbar">
         <span className={`badge badge-project-status-${project.status}`}>{STATUS_LABELS[project.status]}</span>

@@ -1,10 +1,10 @@
+import { PageHead, ScopeTag } from '../components/PageHead';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api, ApiError } from '../api/client';
 import { EventType, GeoEvent } from '../api/types';
-import { NotificationsBell } from '../components/NotificationsBell';
 import { useAuth } from '../auth/AuthContext';
 
 // Geolocation map (Phase 4). Every marker comes from
@@ -37,15 +37,15 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
 // Same palette family as the graph's node colors, extended with a couple
 // more hues since there are 9 event types rather than 5 node types.
 const EVENT_TYPE_COLORS: Record<EventType, string> = {
-  interview: '#2563eb',
-  meeting: '#0891b2',
-  call: '#059669',
-  field_visit: '#65a30d',
-  document_analysis: '#7c3aed',
-  key_discovery: '#dc2626',
-  dead_end: '#6b7280',
-  pivot: '#d97706',
-  publication: '#db2777',
+  interview: '#46614F',
+  meeting: '#5E6B7A',
+  call: '#8A6722',
+  field_visit: '#5F7F3E',
+  document_analysis: '#6E5C82',
+  key_discovery: '#9A4F48',
+  dead_end: '#67655E',
+  pivot: '#A8622A',
+  publication: '#1B1B1A',
 };
 
 const ALL_EVENT_TYPES = Object.keys(EVENT_TYPE_LABELS) as EventType[];
@@ -56,7 +56,7 @@ function formatDate(value: string): string {
 }
 
 export function MapPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const caseId = searchParams.get('caseId');
@@ -181,30 +181,17 @@ export function MapPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>Map</h1>
-          {caseId ? (
-            <Link to={`/cases/${caseId}`} className="back-link">
-              &larr; Back to case
-            </Link>
-          ) : (
-            <Link to="/cases" className="back-link">
-              &larr; My cases
-            </Link>
-          )}
-        </div>
-        <div className="page-header-actions">
-          <Link to="/search" className="btn-secondary">Search</Link>
-          <Link to="/graph" className="btn-secondary">Graph</Link>
-          <Link to="/calendar" className="btn-secondary">Calendar</Link>
-          <Link to="/portfolio" className="btn-secondary">Portfolio</Link>
-          <Link to="/security" className="btn-secondary">Security</Link>
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead
+        title="Map"
+        sub={
+          caseId ? (
+            <>
+              <Link to={`/cases/${caseId}`} className="ws-filter-tag">Back to case</Link>
+              <ScopeTag to="/map">This case only</ScopeTag>
+            </>
+          ) : undefined
+        }
+      />
 
       <p className="map-hint">
         {caseId

@@ -1,9 +1,8 @@
+import { PageHead, ScopeTag } from '../components/PageHead';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { CalendarData, CalendarDueDate, CalendarEvent, EventType } from '../api/types';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../auth/AuthContext';
 
 // Calendar / agenda (Phase 4, brief §4.3). Month/week view built entirely
 // from data already tracked — investigation_events.eventDate and
@@ -27,15 +26,15 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
 // Same palette as MapPage's markers, for visual consistency between the
 // two views of the same events.
 const EVENT_TYPE_COLORS: Record<EventType, string> = {
-  interview: '#2563eb',
-  meeting: '#0891b2',
-  call: '#059669',
-  field_visit: '#65a30d',
-  document_analysis: '#7c3aed',
-  key_discovery: '#dc2626',
-  dead_end: '#6b7280',
-  pivot: '#d97706',
-  publication: '#db2777',
+  interview: '#46614F',
+  meeting: '#5E6B7A',
+  call: '#8A6722',
+  field_visit: '#5F7F3E',
+  document_analysis: '#6E5C82',
+  key_discovery: '#9A4F48',
+  dead_end: '#67655E',
+  pivot: '#A8622A',
+  publication: '#1B1B1A',
 };
 
 const ALL_EVENT_TYPES = Object.keys(EVENT_TYPE_LABELS) as EventType[];
@@ -76,8 +75,7 @@ function isSameDay(a: Date, b: Date): boolean {
 }
 
 export function CalendarPage() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+    const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const caseId = searchParams.get('caseId');
 
@@ -193,30 +191,17 @@ export function CalendarPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>Calendar</h1>
-          {caseId ? (
-            <Link to={`/cases/${caseId}`} className="back-link">
-              &larr; Back to case
-            </Link>
-          ) : (
-            <Link to="/cases" className="back-link">
-              &larr; My cases
-            </Link>
-          )}
-        </div>
-        <div className="page-header-actions">
-          <Link to="/search" className="btn-secondary">Search</Link>
-          <Link to="/graph" className="btn-secondary">Graph</Link>
-          <Link to="/map" className="btn-secondary">Map</Link>
-          <Link to="/portfolio" className="btn-secondary">Portfolio</Link>
-          <Link to="/security" className="btn-secondary">Security</Link>
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead
+        title="Calendar"
+        sub={
+          caseId ? (
+            <>
+              <Link to={`/cases/${caseId}`} className="ws-filter-tag">Back to case</Link>
+              <ScopeTag to="/calendar">This case only</ScopeTag>
+            </>
+          ) : undefined
+        }
+      />
 
       <p className="calendar-hint">
         {caseId ? 'Events and due date for this case only.' : 'Every event and case due date across every case you contribute to.'}{' '}

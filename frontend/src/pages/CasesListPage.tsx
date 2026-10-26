@@ -1,3 +1,5 @@
+import { PageHead, PillButton, initials, shortDate } from '../components/PageHead';
+import { Icon } from '../components/icons';
 import { CSSProperties, FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -86,7 +88,6 @@ export function CasesListPage() {
   const [showForm, setShowForm] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<CaseStatus | null>(null);
-  const [statusMenuOpen, setStatusMenuOpen] = useState(false);
 
   async function loadAll() {
     setLoading(true);
@@ -221,55 +222,19 @@ export function CasesListPage() {
 
   return (
     <AppShell activeNav="cases" activeRail="cases">
-      {/* ══════════════════ PAGE HEAD ══════════════════ */}
-      <div className="dash-crumbs">
-        <span>Home</span>
-        <span className="dash-crumb-muted">&rarr; Cases</span>
-      </div>
-      <div className="dash-title-row">
-        <h1 className="dash-title">My investigation cases</h1>
-        <div className="dash-actions">
-          <Link to="/search" className="dash-icon-btn" aria-label="Search" title="Search across cases">
-            <svg className="dash-i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7.1"/><path d="M16.3 16.3 20.6 20.6"/></svg>
-          </Link>
-          <div className="dash-status-filter">
-            <button
-              type="button"
-              className="dash-icon-btn"
-              aria-label="Filter by status"
-              title="Filter by status"
-              onClick={() => setStatusMenuOpen((v) => !v)}
-            >
-              <svg className="dash-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 5.2v13.6M15.4 5.2v13.6"/><circle cx="8.6" cy="9.2" r="2.1"/><circle cx="15.4" cy="14.8" r="2.1"/></svg>
-            </button>
-            {statusMenuOpen && (
-              <div className="dash-status-menu">
-                <button
-                  type="button"
-                  className={statusFilter === null ? 'is-active' : ''}
-                  onClick={() => { setStatusFilter(null); setStatusMenuOpen(false); }}
-                >
-                  All statuses
-                </button>
-                {STATUS_ORDER.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={statusFilter === s ? 'is-active' : ''}
-                    onClick={() => { setStatusFilter(s); setStatusMenuOpen(false); }}
-                  >
-                    {STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <button type="button" className="dash-pill dash-pill-primary" onClick={() => setShowForm((v) => !v)}>
-            <svg className="dash-i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.2v13.6M5.2 12h13.6"/></svg>
-            <span>New case</span>
-          </button>
-        </div>
-      </div>
+      <PageHead
+        title="Cases"
+        action={
+          <PillButton icon={showForm ? 'x' : 'plus'} onClick={() => setShowForm((v) => !v)}>
+            {showForm ? 'Cancel' : 'New case'}
+          </PillButton>
+        }
+        kpis={[
+          { value: stats.total, label: 'cases' },
+          { value: stats.activeCount, label: 'active' },
+          { value: stats.publishedCount, label: 'published' },
+        ]}
+      />
 
       {error && <p className="dash-error">{error}</p>}
 
@@ -437,7 +402,7 @@ export function CasesListPage() {
                       className="dash-events-line"
                       d={stats.trendPath}
                       fill="none"
-                      stroke="#25252b"
+                      stroke="#1B1B1A"
                       strokeWidth={2}
                       strokeLinecap="round"
                     />
@@ -487,45 +452,120 @@ export function CasesListPage() {
       )}
 
       {/* ══════════════════ CASE LIST ══════════════════ */}
-      <div className="dash-list-head">
-        <h2>{statusFilter ? STATUS_LABELS[statusFilter] : 'All cases'}</h2>
-        {statusFilter && (
-          <button type="button" className="dash-pill" onClick={() => setStatusFilter(null)}>
-            Clear filter
-          </button>
+      <section className="ws-section" id="cases">
+        <div className="ws-section-head">
+          <h2>{statusFilter ? STATUS_LABELS[statusFilter] : 'All cases'}</h2>
+          <span className="ws-count">
+            <b>{visibleCases.length}</b> case{visibleCases.length === 1 ? '' : 's'}
+          </span>
+          <Link to="/search" className="ws-circle" aria-label="Search across cases" title="Search across cases">
+            <Icon name="search" size={17} />
+          </Link>
+          <div className="ws-pills" role="tablist" aria-label="Filter by status">
+            <button
+              type="button"
+              className={`ws-pill${statusFilter === null ? ' is-on' : ''}`}
+              onClick={() => setStatusFilter(null)}
+            >
+              All<small>{cases.length}</small>
+            </button>
+            {STATUS_ORDER.map((st) => {
+              const n = cases.filter((c) => c.status === st).length;
+              return (
+                <button
+                  key={st}
+                  type="button"
+                  className={`ws-pill${statusFilter === st ? ' is-on' : ''}`}
+                  onClick={() => setStatusFilter(st)}
+                  disabled={!n}
+                >
+                  <i className={`ws-status-dot is-${st}`} />
+                  {STATUS_LABELS[st]}
+                  <small>{n}</small>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="ws-empty">Loading...</div>
+        ) : visibleCases.length === 0 ? (
+          <div className="ws-empty">
+            {statusFilter ? 'No cases with this status.' : 'No cases yet. Create the first one with “New case”.'}
+          </div>
+        ) : (
+          <div className="ws-grid">
+            {visibleCases.map((c) => (
+              <CaseCard key={c.id} item={c} />
+            ))}
+          </div>
         )}
+      </section>
+    </AppShell>
+  );
+}
+
+const CARD_SENSITIVITY_LABELS: Record<Sensitivity, string> = {
+  public: 'Public',
+  internal: 'Internal',
+  confidential: 'Confidential',
+  highly_sensitive: 'Highly sensitive',
+};
+
+/* Carte dossier — structure « task » du portfolio : rangée sensibilité/thème,
+   flèche ronde en coin, pastille d'initiales + titre + dates, pied « Status ». */
+function CaseCard({ item: c }: { item: CaseSummary }) {
+  const theme = c.tags?.find((t) => t.type === 'theme') ?? c.tags?.[0];
+  const locked = c.sensitivity === 'confidential' || c.sensitivity === 'highly_sensitive';
+  return (
+    <Link to={`/cases/${c.id}`} className="ws-card ws-task">
+      <div className="ws-notch">
+        <span className="ws-circle" aria-hidden="true">
+          <Icon name="arrowUpRight" />
+        </span>
       </div>
 
-      {loading ? (
-        <p className="dash-loading">Loading...</p>
-      ) : visibleCases.length === 0 ? (
-        <p className="dash-empty">
-          {statusFilter ? 'No cases with this status.' : 'No cases yet. Create the first one above.'}
-        </p>
-      ) : (
-        <div className="case-grid">
-          {visibleCases.map((c) => (
-            <Link to={`/cases/${c.id}`} key={c.id} className="case-card">
-              <h2>{c.title}</h2>
-              <div className="case-card-badges">
-                <StatusBadge status={c.status} />
-                <SensitivityBadge sensitivity={c.sensitivity} />
-              </div>
-              {c.description && <p className="case-card-desc">{c.description}</p>}
-              {c.tags && c.tags.length > 0 && (
-                <div className="tag-badges">
-                  {c.tags.map((t) => (
-                    <span key={t.id} className={`badge badge-tag-${t.type}`}>
-                      {t.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="case-card-meta">Updated on {new Date(c.updatedAt).toLocaleDateString('en-US')}</p>
-            </Link>
-          ))}
+      <div className="ws-task-who">
+        <span className={`ws-thumb ws-thumb--icon ws-sens is-${c.sensitivity}`} style={{ width: 44, height: 44 }}>
+          <Icon name={locked ? 'lock' : 'folder'} />
+        </span>
+        <div>
+          <b>{CARD_SENSITIVITY_LABELS[c.sensitivity]}</b>
+          <small>{theme ? theme.name : 'No theme yet'}</small>
         </div>
-      )}
-    </AppShell>
+      </div>
+
+      <div className="ws-task-main">
+        <span className="ws-thumb ws-thumb--initials" style={{ width: 44, height: 44 }}>
+          <b style={{ fontSize: 15 }}>{initials(c.title)}</b>
+        </span>
+        <div className="ws-task-text">
+          <h3 className="ws-task-title">{c.title}</h3>
+          <p className="ws-task-date">
+            <span>Updated {shortDate(c.updatedAt)}</span>
+            {c.dueDate && (
+              <>
+                {' → '}
+                <span>Due {shortDate(c.dueDate)}</span>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <span className="ws-label">Status</span>
+      <div className="ws-task-foot">
+        <span className="ws-status">
+          <i className={`ws-status-dot is-${c.status}`} />
+          {STATUS_LABELS[c.status]}
+        </span>
+        {c.sensitivity === 'highly_sensitive' && (
+          <span className="ws-circle ws-circle--dark" title="Two-factor verification required">
+            <Icon name="shield" size={16} />
+          </span>
+        )}
+      </div>
+    </Link>
   );
 }

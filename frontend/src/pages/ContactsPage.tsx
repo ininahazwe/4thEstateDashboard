@@ -1,3 +1,4 @@
+import { PageHead } from '../components/PageHead';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -67,12 +68,12 @@ function ContactFields({ contact }: { contact?: Contact }) {
 const PAGE_SIZE = 24;
 
 const AVATAR_PALETTE = [
-  { bg: '#dff3ea', fg: '#116149' },
-  { bg: '#111114', fg: '#ffffff' },
-  { bg: '#dcecfb', fg: '#1d4c8a' },
-  { bg: '#f4e6d8', fg: '#8a5a1d' },
-  { bg: '#ece3fb', fg: '#5b3a9e' },
-  { bg: '#fbe3e6', fg: '#a13a45' },
+  { bg: '#E7EDE8', fg: '#34493A' },
+  { bg: '#1B1B1A', fg: '#FFFFFF' },
+  { bg: '#E4E9EF', fg: '#3D4F63' },
+  { bg: '#F1E8DA', fg: '#7A5418' },
+  { bg: '#ECE7F2', fg: '#4F3F6B' },
+  { bg: '#F4E4E1', fg: '#7E3932' },
 ];
 
 function initials(name: string): string {
@@ -172,14 +173,7 @@ export function ContactsPage() {
 
   return (
     <AppShell activeRail="contacts">
-      <header className="page-header">
-        <div>
-          <h1>Contacts</h1>
-          <Link to="/cases" className="back-link">
-            &larr; My cases
-          </Link>
-        </div>
-      </header>
+      <PageHead title="Contacts" />
 
       <form className="inline-form" onSubmit={handleSearchSubmit}>
         <input

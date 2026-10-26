@@ -1,10 +1,9 @@
+import { PageHead } from '../components/PageHead';
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, requestBlob } from '../api/client';
 import { EventType, Sensitivity, SearchResourceType, SearchResult } from '../api/types';
 import { SensitivityBadge } from '../components/StatusBadge';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../auth/AuthContext';
 
 const EVENT_TYPE_LABELS: Record<EventType, string> = {
   interview: 'Interview',
@@ -62,8 +61,7 @@ function buildQueryString(filters: Filters): string {
 }
 
 export function SearchPage() {
-  const { user, logout } = useAuth();
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+    const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [lastQueryString, setLastQueryString] = useState<string | null>(null);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,19 +118,7 @@ export function SearchPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>Search</h1>
-          <Link to="/cases" className="back-link">
-            &larr; My cases
-          </Link>
-        </div>
-        <div className="page-header-actions">
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead title="Search" />
 
       <form className="inline-form search-form" onSubmit={handleSearch}>
         <input

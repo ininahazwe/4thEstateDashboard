@@ -1,3 +1,4 @@
+import { PageHead } from '../components/PageHead';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, requestBlob } from '../api/client';
@@ -619,14 +620,7 @@ export function CaseDetailPage() {
   if (totpGate) {
     return (
       <AppShell activeNav="cases" activeRail="cases">
-        <header className="page-header">
-          <div>
-            <h1>Two-factor authentication required</h1>
-            <Link to="/cases" className="back-link">
-              &larr; My cases
-            </Link>
-          </div>
-        </header>
+        <PageHead entity title="Two-factor authentication required" />
         <div className="totp-gate">
           <p>{totpGate.message}</p>
           {totpGate.code === 'TOTP_SETUP_REQUIRED' ? (
@@ -767,33 +761,34 @@ export function CaseDetailPage() {
         &larr; All cases
       </Link>
 
-      <header className="page-header">
-        <div>
-          <h1>{caseItem.title}</h1>
+      <PageHead
+        entity
+        title={caseItem.title}
+        sub={
           <div className="case-card-badges">
             <StatusBadge status={caseItem.status} />
             <SensitivityBadge sensitivity={caseItem.sensitivity} />
           </div>
-        </div>
-        <div className="page-header-actions">
+        }
+      >
           {/* Search / Portfolio / Security dropped here — the shared
               AppShell rail + top nav already link to those. Graph/Map/
               Calendar stay because they're scoped to this one case
               (?caseId=...), which the generic rail icons don't offer. */}
-          <Link to={`/graph?caseId=${caseItem.id}`} className="btn-secondary">Graph</Link>
-          <Link to={`/map?caseId=${caseItem.id}`} className="btn-secondary">Map</Link>
-          <Link to={`/calendar?caseId=${caseItem.id}`} className="btn-secondary">Calendar</Link>
-          <button onClick={() => handleDownloadReport(true)} className="btn-secondary">
+          <Link to={`/graph?caseId=${caseItem.id}`} className="ws-pill">Graph</Link>
+          <Link to={`/map?caseId=${caseItem.id}`} className="ws-pill">Map</Link>
+          <Link to={`/calendar?caseId=${caseItem.id}`} className="ws-pill">Calendar</Link>
+          <button onClick={() => handleDownloadReport(true)} className="ws-pill">
             Report (redacted)
           </button>
           {!(caseItem.sensitivity === 'highly_sensitive' && !isLead) && (
-            <button onClick={() => handleDownloadReport(false)} className="btn-secondary">
+            <button onClick={() => handleDownloadReport(false)} className="ws-pill">
               Report (full)
             </button>
           )}
           {canEditCase && (
             <>
-              <button onClick={() => setShowCaseEditForm((v) => !v)} className="btn-secondary">
+              <button onClick={() => setShowCaseEditForm((v) => !v)} className="ws-pill">
                 {showCaseEditForm ? 'Cancel' : 'Edit case'}
               </button>
               {isLead && (
@@ -803,8 +798,7 @@ export function CaseDetailPage() {
               )}
             </>
           )}
-        </div>
-      </header>
+      </PageHead>
 
       {reportError && <p className="form-error">{reportError}</p>}
 

@@ -1,8 +1,8 @@
+import { PageHead } from '../components/PageHead';
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { TotpEnableResponse, TotpSetupResponse, TotpStatus } from '../api/types';
-import { NotificationsBell } from '../components/NotificationsBell';
 import { useAuth } from '../auth/AuthContext';
 
 // Account-level 2FA management (brief §5.2). Enrollment is two steps against
@@ -109,24 +109,7 @@ export function SecuritySettingsPage() {
 
   return (
     <div className="page">
-      <header className="page-header">
-        <div>
-          <h1>Security</h1>
-          <Link to="/cases" className="back-link">
-            &larr; My cases
-          </Link>
-        </div>
-        <div className="page-header-actions">
-          <Link to="/search" className="btn-secondary">Search</Link>
-          <Link to="/graph" className="btn-secondary">Graph</Link>
-          <Link to="/map" className="btn-secondary">Map</Link>
-          <Link to="/calendar" className="btn-secondary">Calendar</Link>
-          <Link to="/portfolio" className="btn-secondary">Portfolio</Link>
-          <NotificationsBell />
-          <span className="current-user">{user?.fullName}</span>
-          <button onClick={logout} className="btn-secondary">Sign out</button>
-        </div>
-      </header>
+      <PageHead title="Security" />
 
       <p className="portfolio-hint">
         Two-factor authentication (brief §5.2) is required to access highly sensitive cases. Once
