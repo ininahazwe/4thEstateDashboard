@@ -1,10 +1,23 @@
-import { PageHead, ScopeTag } from '../components/PageHead';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as d3 from 'd3';
 import { api } from '../api/client';
 import { ApiError } from '../api/client';
 import { GraphData, GraphEdgeType, GraphNode, GraphNodeType } from '../api/types';
+import { AppShell } from '../components/AppShell';
+import { PageHead, ScopeTag } from '../components/PageHead';
+import {
+  DockBar,
+  DockButton,
+  DockPrimary,
+  Panel,
+  PanelFootButton,
+  PanelGroupLabel,
+  PanelOption,
+  PanelSearch,
+  PanelSection,
+  ViewSwitcher,
+} from '../components/Shell';
 
 // Relationship graph (brief §1.5). Auto-derived on the backend from data
 // that already exists elsewhere (contacts <-> cases/events, tags, comment
@@ -20,15 +33,28 @@ const NODE_TYPE_LABELS: Record<GraphNodeType, string> = {
   location: 'Location',
 };
 
-// Same color family as the existing search-result badges (badge-resource-*
-// in styles.css) — case and event reuse those exact colors, contact/tag/
-// location are new but picked from the same palette.
-const NODE_TYPE_COLORS: Record<GraphNodeType, string> = {
-  case: '#1B1B1A',
-  event: '#5E6B7A',
-  contact: '#46614F',
-  tag: '#6E5C82',
-  location: '#8A6722',
+// Maquette « canevas » : les dossiers sont des cartes noires (élément principal),
+// les autres nœuds des cartes pastel claires, une teinte par type.
+const NODE_FILL: Record<GraphNodeType, string> = {
+  case: '#18191B',
+  event: '#E6EFF8',
+  contact: '#E5F0E6',
+  tag: '#EEEAF6',
+  location: '#F6EEDC',
+};
+const NODE_SYMBOL: Record<GraphNodeType, string> = {
+  case: 'g-folder',
+  event: 'g-calendar',
+  contact: 'g-person',
+  tag: 'g-tag',
+  location: 'g-pin',
+};
+const NODE_HINTS: Record<GraphNodeType, string> = {
+  case: 'Opens the case',
+  event: 'Opens its case',
+  contact: 'Highlights its connections',
+  tag: 'Highlights its connections',
+  location: 'Highlights its connections',
 };
 
 const EDGE_TYPE_LABELS: Record<GraphEdgeType, string> = {
@@ -44,7 +70,29 @@ const EDGE_TYPE_LABELS: Record<GraphEdgeType, string> = {
 };
 
 const ALL_EDGE_TYPES = Object.keys(EDGE_TYPE_LABELS) as GraphEdgeType[];
-const CLUSTER_COLORS = d3.schemeTableau10 as readonly string[];
+
+// Couleur des liens par famille : personnes (bleu), lieux (vert), dossier (encre),
+// thèmes (violet), découvertes et mentions (rose / ocre).
+const EDGE_COLORS: Record<GraphEdgeType, string> = {
+  linked_to_case: '#18191B',
+  part_of_case: '#18191B',
+  involved_in_event: '#3F86B5',
+  interviewed_at: '#3F86B5',
+  met: '#3F86B5',
+  took_place_at: '#4E8A5C',
+  tagged_with: '#7A62A3',
+  discovered_at: '#B4506E',
+  mentioned_in: '#9A7432',
+};
+const EDGE_GROUPS: { label: string; types: GraphEdgeType[] }[] = [
+  { label: 'People', types: ['involved_in_event', 'interviewed_at', 'met'] },
+  { label: 'Case', types: ['linked_to_case', 'part_of_case', 'discovered_at'] },
+  { label: 'Context', types: ['took_place_at', 'tagged_with', 'mentioned_in'] },
+];
+
+function shortLabel(text: string, max = 24): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
 
 interface SimNode extends GraphNode, d3.SimulationNodeDatum {
   clusterId: number;
@@ -94,7 +142,7 @@ function computeClusters(nodes: GraphNode[], edgePairs: { source: string; target
 }
 
 export function GraphPage() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const caseId = searchParams.get('caseId');
 
@@ -104,16 +152,19 @@ export function GraphPage() {
   const [visibleTypes, setVisibleTypes] = useState<Set<GraphEdgeType>>(new Set(ALL_EDGE_TYPES));
   const [hover, setHover] = useState<{ x: number; y: number; text: string } | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Populated by the simulation effect, read by the focus effect — kept as
-  // refs so toggling focus doesn't have to tear down and restart the whole
-  // force simulation.
+  // Remplis par l'effet de simulation, lus par l'effet de focus et par les
+  // boutons de zoom — gardés en refs pour ne pas relancer la simulation.
   const selectionsRef = useRef<{
-    node: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>;
-    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>;
-    label: d3.Selection<SVGTextElement, SimNode, SVGGElement, unknown>;
+    node: d3.Selection<SVGGElement, SimNode, SVGGElement, unknown>;
+    link: d3.Selection<SVGPathElement, SimLink, SVGGElement, unknown>;
+  } | null>(null);
+  const zoomRef = useRef<{
+    svg: d3.Selection<SVGSVGElement, unknown, null, undefined>;
+    zoom: d3.ZoomBehavior<SVGSVGElement, unknown>;
   } | null>(null);
 
   useEffect(() => {
@@ -146,14 +197,13 @@ export function GraphPage() {
     });
   }
 
-  // Builds (or rebuilds) the force simulation whenever the data or the
-  // edge-type filter changes.
+  // Construit (ou reconstruit) la simulation quand les données ou les types de lien visibles changent.
   useEffect(() => {
     if (!data || !svgRef.current || !containerRef.current) return;
     setFocusId(null);
 
     const width = containerRef.current.clientWidth || 800;
-    const height = 600;
+    const height = containerRef.current.clientHeight || 600;
 
     const links = data.edges.filter((e) => visibleTypes.has(e.type));
     const clusterIds = computeClusters(data.nodes, links);
@@ -168,12 +218,14 @@ export function GraphPage() {
     svg.attr('viewBox', `0 0 ${width} ${height}`);
 
     const root = svg.append('g');
-    svg.call(
-      d3
-        .zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.2, 4])
-        .on('zoom', (event) => root.attr('transform', event.transform.toString()))
-    );
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 4])
+      .on('zoom', (event) => root.attr('transform', event.transform.toString()));
+    svg.call(zoom);
+    zoomRef.current = { svg, zoom };
+
+    const size = (d: SimNode) => (d.type === 'case' ? 52 : 40);
 
     const simulation = d3
       .forceSimulation<SimNode>(nodes)
@@ -182,37 +234,38 @@ export function GraphPage() {
         d3
           .forceLink<SimNode, SimLink>(simLinks)
           .id((d) => d.id)
-          .distance(70)
-          .strength(0.4)
+          .distance(110)
+          .strength(0.35)
       )
-      .force('charge', d3.forceManyBody().strength(-180))
+      .force('charge', d3.forceManyBody().strength(-320))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide(22));
+      // Légère attraction vers le centre : un nœud isolé (ses liens masqués) reste dans le cadre.
+      .force('x', d3.forceX<SimNode>(width / 2).strength(0.03))
+      .force('y', d3.forceY<SimNode>(height / 2).strength(0.045))
+      .force('collide', d3.forceCollide<SimNode>((d) => size(d) / 2 + 26));
 
     const link = root
       .append('g')
-      .attr('stroke', '#D8D5CC')
-      .selectAll<SVGLineElement, SimLink>('line')
+      .attr('fill', 'none')
+      .selectAll<SVGPathElement, SimLink>('path')
       .data(simLinks)
-      .join('line')
-      .attr('stroke-width', 1.4)
-      .attr('stroke-opacity', 0.6)
+      .join('path')
+      .attr('stroke', (d) => EDGE_COLORS[d.type])
+      .attr('stroke-width', 1.5)
+      .attr('stroke-opacity', 0.55)
       .on('mouseenter', (event: MouseEvent, d) => setHover({ x: event.clientX, y: event.clientY, text: d.label }))
       .on('mousemove', (event: MouseEvent) => setHover((h) => (h ? { ...h, x: event.clientX, y: event.clientY } : h)))
       .on('mouseleave', () => setHover(null));
 
     const node = root
       .append('g')
-      .selectAll<SVGCircleElement, SimNode>('circle')
+      .selectAll<SVGGElement, SimNode>('g')
       .data(nodes)
-      .join('circle')
-      .attr('r', (d) => (d.type === 'case' ? 12 : 8))
-      .attr('fill', (d) => NODE_TYPE_COLORS[d.type])
-      .attr('stroke', (d) => CLUSTER_COLORS[d.clusterId % CLUSTER_COLORS.length])
-      .attr('stroke-width', 2.5)
+      .join('g')
+      .attr('class', (d) => `graph-node graph-node--${d.type}`)
       .style('cursor', 'pointer')
       .on('mouseenter', (event: MouseEvent, d) =>
-        setHover({ x: event.clientX, y: event.clientY, text: `${NODE_TYPE_LABELS[d.type]}: ${d.label}` })
+        setHover({ x: event.clientX, y: event.clientY, text: `${NODE_TYPE_LABELS[d.type]}: ${d.label} — ${NODE_HINTS[d.type]}` })
       )
       .on('mousemove', (event: MouseEvent) => setHover((h) => (h ? { ...h, x: event.clientX, y: event.clientY } : h)))
       .on('mouseleave', () => setHover(null))
@@ -220,15 +273,13 @@ export function GraphPage() {
         const targetCaseId = (d.meta as { caseId?: number } | undefined)?.caseId;
         if ((d.type === 'case' || d.type === 'event') && targetCaseId) {
           navigate(`/cases/${targetCaseId}`);
-        } else if (d.type === 'contact') {
-          navigate('/contacts');
         } else {
           setFocusId((prev) => (prev === d.id ? null : d.id));
         }
       })
       .call(
         d3
-          .drag<SVGCircleElement, SimNode>()
+          .drag<SVGGElement, SimNode>()
           .on('start', (event, d) => {
             if (!event.active) simulation.alphaTarget(0.2).restart();
             d.fx = d.x;
@@ -245,50 +296,80 @@ export function GraphPage() {
           })
       );
 
-    const label = root
-      .append('g')
-      .selectAll<SVGTextElement, SimNode>('text')
-      .data(nodes)
-      .join('text')
-      .text((d) => d.label)
-      .attr('font-size', 10)
-      .attr('dx', 12)
-      .attr('dy', 4)
-      .attr('fill', '#1B1B1A')
+    node
+      .append('rect')
+      .attr('x', (d) => -size(d) / 2)
+      .attr('y', (d) => -size(d) / 2)
+      .attr('width', size)
+      .attr('height', size)
+      .attr('rx', (d) => (d.type === 'case' ? 16 : 13))
+      .attr('fill', (d) => NODE_FILL[d.type]);
+
+    node
+      .append('use')
+      .attr('href', (d) => `#${NODE_SYMBOL[d.type]}`)
+      .attr('x', -9)
+      .attr('y', -9)
+      .attr('width', 18)
+      .attr('height', 18)
+      .attr('color', (d) => (d.type === 'case' ? '#FFFFFF' : '#18191B'));
+
+    node
+      .append('text')
+      .text((d) => shortLabel(d.label))
+      .attr('y', (d) => size(d) / 2 + 16)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', (d) => (d.type === 'case' ? 12.5 : 11.5))
+      .attr('font-weight', (d) => (d.type === 'case' ? 500 : 400))
+      .attr('fill', (d) => (d.type === 'case' ? '#18191B' : '#4A4944'))
+      .attr('paint-order', 'stroke')
+      .attr('stroke', '#FFFFFF')
+      .attr('stroke-width', 4)
+      .attr('stroke-linejoin', 'round')
       .style('pointer-events', 'none');
 
-    selectionsRef.current = { node, link, label };
+    selectionsRef.current = { node, link };
 
     simulation.on('tick', () => {
-      link
-        .attr('x1', (d) => (d.source as SimNode).x ?? 0)
-        .attr('y1', (d) => (d.source as SimNode).y ?? 0)
-        .attr('x2', (d) => (d.target as SimNode).x ?? 0)
-        .attr('y2', (d) => (d.target as SimNode).y ?? 0);
-      node.attr('cx', (d) => d.x ?? 0).attr('cy', (d) => d.y ?? 0);
-      label.attr('x', (d) => d.x ?? 0).attr('y', (d) => d.y ?? 0);
+      link.attr('d', (d) => {
+        const s = d.source as SimNode;
+        const t = d.target as SimNode;
+        const sx = s.x ?? 0;
+        const sy = s.y ?? 0;
+        const tx = t.x ?? 0;
+        const ty = t.y ?? 0;
+        // Courbe douce, comme les liaisons de la maquette.
+        const mx = (sx + tx) / 2;
+        return `M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+      });
+      node.attr('transform', (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
     return () => {
       simulation.stop();
       selectionsRef.current = null;
+      zoomRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, visibleTypes, navigate]);
 
-  // Focus mode: dims everything except the focused node and its direct
-  // neighbors. This is the only "open detail" behavior contact/tag/location
-  // nodes get on click — unlike cases and events, there's no dedicated page
-  // to navigate to for a single contact/tag/location today.
+  // Focus (clic sur un contact / thème / lieu) et recherche : estompe tout sauf
+  // le nœud ciblé et ses voisins directs, ou les nœuds qui correspondent au texte.
   useEffect(() => {
     const sel = selectionsRef.current;
     if (!sel) return;
-    const { node, link, label } = sel;
+    const { node, link } = sel;
+    const q = query.trim().toLowerCase();
+
+    if (!focusId && !q) {
+      node.attr('opacity', 1);
+      link.attr('opacity', 1);
+      return;
+    }
 
     if (!focusId) {
-      node.attr('opacity', 1);
-      link.attr('opacity', 0.6);
-      label.attr('opacity', 1);
+      node.attr('opacity', (d) => (d.label.toLowerCase().includes(q) ? 1 : 0.15));
+      link.attr('opacity', 0.15);
       return;
     }
 
@@ -301,21 +382,115 @@ export function GraphPage() {
     });
 
     node.attr('opacity', (d) => (neighbors.has(d.id) ? 1 : 0.12));
-    label.attr('opacity', (d) => (neighbors.has(d.id) ? 1 : 0.12));
     link.attr('opacity', (d) => {
       const s = typeof d.source === 'string' ? d.source : (d.source as SimNode).id;
       const t = typeof d.target === 'string' ? d.target : (d.target as SimNode).id;
-      return s === focusId || t === focusId ? 0.9 : 0.05;
+      return s === focusId || t === focusId ? 1 : 0.08;
     });
-  }, [focusId]);
+  }, [focusId, query]);
+
+  function zoomBy(k: number) {
+    const z = zoomRef.current;
+    if (z) z.svg.transition().duration(200).call(z.zoom.scaleBy, k);
+  }
+  function zoomReset() {
+    const z = zoomRef.current;
+    if (z) z.svg.transition().duration(250).call(z.zoom.transform, d3.zoomIdentity);
+  }
 
   const nodeCount = data?.nodes.length ?? 0;
   const edgeCount = data?.edges.filter((e) => visibleTypes.has(e.type)).length ?? 0;
+  const edgeCountByType = new Map<GraphEdgeType, number>();
+  data?.edges.forEach((e) => edgeCountByType.set(e.type, (edgeCountByType.get(e.type) ?? 0) + 1));
+  const nodeCountByType = new Map<GraphNodeType, number>();
+  data?.nodes.forEach((n) => nodeCountByType.set(n.type, (nodeCountByType.get(n.type) ?? 0) + 1));
+  const hiddenTypes = ALL_EDGE_TYPES.length - visibleTypes.size;
+  const focusLabel = focusId ? data?.nodes.find((n) => n.id === focusId)?.label : null;
+
+  const panel = (
+    <>
+      <PanelSearch value={query} onChange={setQuery} placeholder="Find a node" />
+      <Panel
+        foot={
+          focusId ? (
+            <PanelFootButton onClick={() => setFocusId(null)} badge={focusLabel ? shortLabel(focusLabel, 16) : null}>
+              Clear focus
+            </PanelFootButton>
+          ) : (
+            <PanelFootButton
+              onClick={() => setVisibleTypes(new Set(ALL_EDGE_TYPES))}
+              disabled={hiddenTypes === 0}
+              badge={hiddenTypes > 0 ? `${hiddenTypes} hidden` : null}
+            >
+              Show all link types
+            </PanelFootButton>
+          )
+        }
+      >
+        <PanelSection title="Links" count={edgeCount} defaultOpen>
+          {EDGE_GROUPS.map((g) => (
+            <div key={g.label}>
+              <PanelGroupLabel>{g.label}</PanelGroupLabel>
+              {g.types.map((t) => (
+                <PanelOption
+                  key={t}
+                  title={EDGE_TYPE_LABELS[t]}
+                  swatch={EDGE_COLORS[t]}
+                  count={edgeCountByType.get(t) ?? 0}
+                  active={visibleTypes.has(t)}
+                  onClick={() => toggleType(t)}
+                  toggle
+                />
+              ))}
+            </div>
+          ))}
+        </PanelSection>
+        <PanelSection title="Node types" count={nodeCount}>
+          {(Object.keys(NODE_TYPE_LABELS) as GraphNodeType[]).map((t) => (
+            <PanelOption
+              key={t}
+              title={NODE_TYPE_LABELS[t]}
+              desc={NODE_HINTS[t]}
+              swatch={NODE_FILL[t]}
+              count={nodeCountByType.get(t) ?? 0}
+            />
+          ))}
+        </PanelSection>
+      </Panel>
+    </>
+  );
 
   return (
-    <div className="page">
+    <AppShell
+      activeNav="graph"
+      panel={panel}
+      dock={
+        <>
+          {caseId ? (
+            <DockPrimary icon="arrowLeft" to={`/cases/${caseId}`}>Back to case</DockPrimary>
+          ) : null}
+          <ViewSwitcher current="graph" />
+          <DockBar label="Zoom">
+            <DockButton icon="minus" label="Zoom out" onClick={() => zoomBy(0.8)} />
+            <DockButton icon="fit" label="Reset view" onClick={zoomReset} />
+            <DockButton icon="plus" label="Zoom in" onClick={() => zoomBy(1.25)} />
+          </DockBar>
+        </>
+      }
+    >
+      {/* Pictogrammes utilisés par les nœuds D3 (<use href="#g-…">). */}
+      <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+        <defs>
+          <symbol id="g-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 7.5c0-1.1.9-2 2-2h4l2 2.5h7c1.1 0 2 .9 2 2v7.5c0 1.1-.9 2-2 2h-13c-1.1 0-2-.9-2-2V7.5Z" /></symbol>
+          <symbol id="g-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8.5 3v4M15.5 3v4" /></symbol>
+          <symbol id="g-person" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.8" /><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6" /></symbol>
+          <symbol id="g-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 12.6V5.5c0-1.1.9-2 2-2h7.1l8 8-9.1 9.1-8-8Z" /><circle cx="8.3" cy="8.3" r="1.4" /></symbol>
+          <symbol id="g-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z" /><circle cx="12" cy="10" r="2.3" /></symbol>
+        </defs>
+      </svg>
+
       <PageHead
-        title="Graph"
+        title="Relations"
         sub={
           caseId ? (
             <>
@@ -324,56 +499,36 @@ export function GraphPage() {
             </>
           ) : undefined
         }
+        kpis={
+          data
+            ? [
+                { value: nodeCount, label: nodeCount === 1 ? 'node' : 'nodes' },
+                { value: edgeCount, label: edgeCount === 1 ? 'link' : 'links' },
+              ]
+            : undefined
+        }
       />
 
-      <p className="graph-hint">
-        {caseId
-          ? 'Relations for this case only.'
-          : 'Relations across every case you contribute to — auto-derived from contacts, events, tags and comment mentions (nothing here is manually entered).'}{' '}
-        Drag nodes to rearrange, scroll/pinch to zoom, click a case or event to open it, click a contact/tag/location to
-        highlight its connections.
+      <p className="sh-note">
+        {caseId ? 'Relations for this case only, ' : 'Relations across every case you contribute to, '}
+        built automatically from contacts, events, themes and comment mentions. Drag a node to move it; click a case or
+        an event to open it; click a contact, theme or place to highlight its connections.
       </p>
-
-      <div className="graph-filters">
-        {ALL_EDGE_TYPES.map((type) => (
-          <label key={type} className="graph-filter-chip">
-            <input type="checkbox" checked={visibleTypes.has(type)} onChange={() => toggleType(type)} />
-            {EDGE_TYPE_LABELS[type]}
-          </label>
-        ))}
-      </div>
-
-      <div className="graph-legend">
-        {(Object.keys(NODE_TYPE_LABELS) as GraphNodeType[]).map((type) => (
-          <span key={type} className="graph-legend-item">
-            <span className="graph-legend-dot" style={{ background: NODE_TYPE_COLORS[type] }} />
-            {NODE_TYPE_LABELS[type]}
-          </span>
-        ))}
-      </div>
 
       {error && <p className="form-error">{error}</p>}
 
       {loading ? (
-        <p>Loading graph...</p>
+        <div className="graph-canvas sh-graph is-loading" aria-busy="true" />
       ) : !data || data.nodes.length === 0 ? (
-        <p className="empty-state">
-          No relations to show yet — this builds up automatically as cases get contacts, events, tags and comments.
-        </p>
+        <div className="sh-empty">
+          <b>No relations to show yet</b>
+          <span>The graph builds itself as cases get contacts, events, themes and comments.</span>
+          <Link to="/cases" className="btn-secondary">Go to cases</Link>
+        </div>
       ) : (
-        <>
-          <p className="graph-stats">
-            {nodeCount} node{nodeCount === 1 ? '' : 's'} · {edgeCount} relation{edgeCount === 1 ? '' : 's'} shown
-            {focusId && (
-              <button type="button" className="btn-tiny graph-clear-focus" onClick={() => setFocusId(null)}>
-                Clear focus
-              </button>
-            )}
-          </p>
-          <div className="graph-canvas" ref={containerRef}>
-            <svg ref={svgRef} width="100%" height={600} />
-          </div>
-        </>
+        <div className="graph-canvas sh-graph" ref={containerRef}>
+          <svg ref={svgRef} width="100%" height="100%" role="img" aria-label={`Relations graph: ${nodeCount} nodes, ${edgeCount} links`} />
+        </div>
       )}
 
       {hover && (
@@ -381,6 +536,6 @@ export function GraphPage() {
           {hover.text}
         </div>
       )}
-    </div>
+    </AppShell>
   );
 }

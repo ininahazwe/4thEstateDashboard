@@ -55,7 +55,7 @@ export default function App() {
         path="/graph"
         element={
           <ProtectedRoute>
-            <AppShell activeNav="graph"><GraphPage /></AppShell>
+            <GraphPage />
           </ProtectedRoute>
         }
       />
@@ -79,7 +79,7 @@ export default function App() {
         path="/portfolio"
         element={
           <ProtectedRoute>
-            <AppShell activeNav="portfolio"><PortfolioPage /></AppShell>
+            <PortfolioPage />
           </ProtectedRoute>
         }
       />

@@ -2,14 +2,27 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { EditorialProjectSummary, PortfolioKpis, ProjectStatus, Tag } from '../api/types';
-import { PageHead, PillButton, initials, shortDate } from '../components/PageHead';
-import { Icon } from '../components/icons';
+import { AppShell } from '../components/AppShell';
+import { PageHead, initials } from '../components/PageHead';
+import {
+  ActiveChips,
+  DockPrimary,
+  Panel,
+  PanelFootButton,
+  PanelOption,
+  PanelSearch,
+  PanelSection,
+  ToolButton,
+  ToolSep,
+  compactDate,
+} from '../components/Shell';
 
 /* ============================================================
-   Portfolio éditorial — structure reprise du portfolio (workspace v3) :
-   en-tête (titre + bouton pilule + KPI), section « All projects »
-   (compteur, filtres en pilules) et grille de cartes « task ».
-   Même logique de données qu'avant (GET /editorial-projects).
+   Portfolio éditorial — maquette « canevas » (nov. 2026) :
+   cartes dont la teinte = l'étape éditoriale, filtres (étape,
+   thème, tri) dans le panneau de droite. Statut, thème et tri
+   restent filtrés côté serveur (GET /editorial-projects), la
+   recherche texte côté client.
    ============================================================ */
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -21,10 +34,19 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
   ready: 'Ready',
   published: 'Published',
 };
-
+const STATUS_HINTS: Record<ProjectStatus, string> = {
+  pitch: 'Idea to be validated',
+  researching: 'Gathering facts and sources',
+  writing: 'Draft in progress',
+  fact_check: 'Claims being verified',
+  editing: 'With the editor',
+  ready: 'Waiting for publication',
+  published: 'Out',
+};
 const STATUS_ORDER: ProjectStatus[] = ['pitch', 'researching', 'writing', 'fact_check', 'editing', 'ready', 'published'];
 
-const SORT_LABELS: Record<'date' | 'urgency' | 'progress', string> = {
+type SortKey = 'date' | 'urgency' | 'progress';
+const SORT_LABELS: Record<SortKey, string> = {
   date: 'Publication date',
   urgency: 'Urgency',
   progress: 'Progress',
@@ -41,7 +63,8 @@ export function PortfolioPage() {
 
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | ''>('');
   const [tagFilter, setTagFilter] = useState('');
-  const [sort, setSort] = useState<'date' | 'urgency' | 'progress'>('date');
+  const [sort, setSort] = useState<SortKey>('date');
+  const [query, setQuery] = useState('');
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -60,6 +83,7 @@ export function PortfolioPage() {
       );
       setProjects(data.projects);
       setKpis(data.kpis);
+      setError(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to load editorial projects');
     } finally {
@@ -99,15 +123,88 @@ export function PortfolioPage() {
     }
   }
 
+  const q = query.trim().toLowerCase();
+  const visible = projects.filter(
+    (p) => !q || [p.title, p.targetPublication ?? ''].join(' ').toLowerCase().includes(q)
+  );
+  const tagName = allTags.find((t) => String(t.id) === tagFilter)?.name;
+
+  const chips = [
+    ...(statusFilter ? [{ key: 's', label: `Stage: ${STATUS_LABELS[statusFilter]}`, onRemove: () => setStatusFilter('') }] : []),
+    ...(tagFilter ? [{ key: 't', label: `Theme: ${tagName ?? tagFilter}`, onRemove: () => setTagFilter('') }] : []),
+    ...(q ? [{ key: 'q', label: `“${query.trim()}”`, onRemove: () => setQuery('') }] : []),
+  ];
+  function clearFilters() {
+    setStatusFilter('');
+    setTagFilter('');
+    setQuery('');
+  }
+
+  const panel = (
+    <>
+      <PanelSearch value={query} onChange={setQuery} placeholder="Search editorial projects" />
+      <Panel
+        foot={
+          <PanelFootButton onClick={clearFilters} disabled={chips.length === 0} badge={chips.length > 0 ? `${chips.length} active` : null}>
+            Clear all filters
+          </PanelFootButton>
+        }
+      >
+        <PanelSection title="Stage" count={STATUS_ORDER.length} defaultOpen>
+          {STATUS_ORDER.map((s) => (
+            <PanelOption
+              key={s}
+              title={STATUS_LABELS[s]}
+              desc={STATUS_HINTS[s]}
+              swatch={`var(--pst-${s})`}
+              active={statusFilter === s}
+              onClick={() => setStatusFilter((cur) => (cur === s ? '' : s))}
+            />
+          ))}
+        </PanelSection>
+        <PanelSection title="Themes" count={allTags.length}>
+          {allTags.length === 0 ? (
+            <p className="sh-panel-empty">No theme exists yet.</p>
+          ) : (
+            allTags.map((t) => (
+              <PanelOption
+                key={t.id}
+                title={t.name}
+                icon="tag"
+                active={tagFilter === String(t.id)}
+                onClick={() => setTagFilter((cur) => (cur === String(t.id) ? '' : String(t.id)))}
+              />
+            ))
+          )}
+        </PanelSection>
+        <PanelSection title="Sort by">
+          {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+            <PanelOption key={k} title={SORT_LABELS[k]} icon="sliders" active={sort === k} onClick={() => setSort(k)} />
+          ))}
+        </PanelSection>
+      </Panel>
+    </>
+  );
+
+  const openForm = () => setShowForm(true);
+
   return (
-    <div className="page">
+    <AppShell
+      activeNav="portfolio"
+      panel={panel}
+      tools={
+        <>
+          <ToolButton icon="plus" label="New editorial project" onClick={openForm} active={showForm} />
+          <ToolButton icon="search" label="Search everything" to="/search" />
+          <ToolSep />
+          <ToolButton icon="folder" label="Cases" to="/cases" />
+          <ToolButton icon="calendar" label="Calendar" to="/calendar" />
+        </>
+      }
+      dock={<DockPrimary onClick={openForm}>New editorial project</DockPrimary>}
+    >
       <PageHead
         title="Portfolio"
-        action={
-          <PillButton icon={showForm ? 'x' : 'plus'} onClick={() => setShowForm((v) => !v)}>
-            {showForm ? 'Cancel' : 'New editorial project'}
-          </PillButton>
-        }
         kpis={
           kpis
             ? [
@@ -117,140 +214,74 @@ export function PortfolioPage() {
               ]
             : undefined
         }
-      />
+      >
+        <ActiveChips chips={chips} />
+      </PageHead>
 
-      <p className="portfolio-hint ws-head-note">
-        Editorial projects group one or more investigation cases under a single story, with per-step milestones
-        and a status pipeline from pitch to publication. A case only shows up here if you also have access to it
-        directly.
+      <p className="sh-note">
+        Each editorial project groups one or more investigation cases under a single story. A case only shows up here
+        if you also have access to it directly.
       </p>
 
       {showForm && (
-        <form className="inline-form ws-form" onSubmit={handleCreate}>
-          <input name="title" placeholder="Project title" required />
-          <input name="targetPublication" placeholder="Target publication (outlet)" />
-          <input name="targetDate" type="date" />
+        <form className="sh-create" onSubmit={handleCreate}>
+          <h2>New editorial project</h2>
+          <input name="title" placeholder="Project title" required autoFocus aria-label="Project title" />
+          <input name="targetPublication" placeholder="Target outlet" aria-label="Target outlet" />
+          <input name="targetDate" type="date" aria-label="Target publication date" />
           <button type="submit" className="btn-primary">Create</button>
+          <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>Cancel</button>
+          {createError && <p className="form-error">{createError}</p>}
         </form>
       )}
-      {createError && <p className="form-error">{createError}</p>}
 
-      <section className="ws-section" id="projects">
-        <div className="ws-section-head">
-          <h2>{statusFilter ? STATUS_LABELS[statusFilter] : 'All projects'}</h2>
-          <span className="ws-count">
-            <b>{projects.length}</b> project{projects.length === 1 ? '' : 's'}
-          </span>
-          <select className="ws-select" value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} aria-label="Theme">
-            <option value="">All themes</option>
-            {allTags.map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-          <select
-            className="ws-select"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as typeof sort)}
-            aria-label="Sort"
-          >
-            {Object.entries(SORT_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>Sort: {label}</option>
-            ))}
-          </select>
-          <div className="ws-pills" role="tablist" aria-label="Filter by status">
-            <button
-              type="button"
-              className={`ws-pill${statusFilter === '' ? ' is-on' : ''}`}
-              onClick={() => setStatusFilter('')}
-            >
-              All
-            </button>
-            {STATUS_ORDER.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`ws-pill${statusFilter === s ? ' is-on' : ''}`}
-                onClick={() => setStatusFilter(s)}
-              >
-                <i className={`ws-status-dot is-${s}`} />
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
-          </div>
+      {error && <p className="form-error">{error}</p>}
+
+      {loading ? (
+        <div className="sh-nodes" aria-busy="true">
+          {Array.from({ length: 4 }, (_, i) => (
+            <span key={i} className="sh-node sh-node--skel" />
+          ))}
         </div>
-
-        {error && <p className="form-error">{error}</p>}
-
-        {loading ? (
-          <div className="ws-empty">Loading...</div>
-        ) : projects.length === 0 ? (
-          <div className="ws-empty">
-            {statusFilter || tagFilter
-              ? 'No editorial project matches this filter.'
-              : 'No editorial projects yet. Create the first one with “New editorial project”.'}
-          </div>
-        ) : (
-          <div className="ws-grid">
-            {projects.map((p) => (
-              <ProjectCard key={p.id} project={p} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+      ) : visible.length === 0 ? (
+        <div className="sh-empty">
+          {chips.length > 0 ? (
+            <>
+              <b>No editorial project matches these filters</b>
+              <button type="button" className="btn-secondary" onClick={clearFilters}>Clear all filters</button>
+            </>
+          ) : (
+            <>
+              <b>No editorial projects yet</b>
+              <span>Group one or more cases into a story to follow it from pitch to publication.</span>
+              <button type="button" className="btn-primary" onClick={openForm}>New editorial project</button>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className="sh-nodes">
+          {visible.map((p) => (
+            <ProjectNode key={p.id} project={p} />
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }
 
-function ProjectCard({ project: p }: { project: EditorialProjectSummary }) {
-  const progress = p.milestoneTotal > 0 ? Math.round((p.milestoneDone / p.milestoneTotal) * 100) : null;
+function ProjectNode({ project: p }: { project: EditorialProjectSummary }) {
   return (
-    <Link to={`/editorial-projects/${p.id}`} className="ws-card ws-task">
-      <div className="ws-notch">
-        <span className="ws-circle" aria-hidden="true">
-          <Icon name="arrowUpRight" />
-        </span>
-      </div>
-
-      <div className="ws-task-who">
-        <span className="ws-thumb ws-thumb--icon" style={{ width: 44, height: 44 }}>
-          <Icon name="file" />
-        </span>
-        <div>
-          <b>{p.targetPublication || 'No outlet yet'}</b>
-          <small>
-            {p.contributorCount} contributor{p.contributorCount === 1 ? '' : 's'} · {p.linkedCaseCount} case
-            {p.linkedCaseCount === 1 ? '' : 's'}
-          </small>
-        </div>
-      </div>
-
-      <div className="ws-task-main">
-        <span className="ws-thumb ws-thumb--initials" style={{ width: 44, height: 44 }}>
-          <b style={{ fontSize: 15 }}>{initials(p.title)}</b>
-        </span>
-        <div className="ws-task-text">
-          <h3 className="ws-task-title">{p.title}</h3>
-          <p className="ws-task-date">
-            {p.targetDate ? <span>Target {shortDate(p.targetDate)}</span> : <span>No target date</span>}
-          </p>
-        </div>
-      </div>
-
-      <span className="ws-label">Status</span>
-      <div className="ws-task-foot">
-        <span className="ws-status">
-          <i className={`ws-status-dot is-${p.status}`} />
-          {STATUS_LABELS[p.status]}
-        </span>
-        {progress !== null && (
-          <span
-            className="ws-circle ws-circle--dark ws-progress"
-            title={`${p.milestoneDone} of ${p.milestoneTotal} milestones done`}
-          >
-            {progress}%
-          </span>
-        )}
-      </div>
+    <Link to={`/editorial-projects/${p.id}`} className={`sh-node pst-${p.status}`}>
+      <span className="sh-node-ic" aria-hidden="true">{initials(p.title)}</span>
+      <b className="sh-node-title">{p.title}</b>
+      <small className="sh-node-sub">
+        {p.targetPublication ? `${p.targetPublication} · ` : ''}
+        {STATUS_LABELS[p.status]}
+      </small>
+      <span className="sh-node-foot">
+        {p.milestoneTotal > 0 ? `${p.milestoneDone}/${p.milestoneTotal} milestones` : `${p.linkedCaseCount} case${p.linkedCaseCount === 1 ? '' : 's'}`}
+        {p.targetDate ? ` · Target ${compactDate(p.targetDate)}` : ''}
+      </span>
     </Link>
   );
 }

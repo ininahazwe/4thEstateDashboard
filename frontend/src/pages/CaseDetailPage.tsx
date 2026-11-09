@@ -1,5 +1,6 @@
-import { PageHead } from '../components/PageHead';
-import { FormEvent, useEffect, useState } from 'react';
+import { PageHead, initials } from '../components/PageHead';
+import { Icon, IconName } from '../components/icons';
+import { FormEvent, ReactNode, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, requestBlob } from '../api/client';
 import {
@@ -38,6 +39,19 @@ const EVENT_TYPE_LABELS: Record<EventType, string> = {
   dead_end: 'Dead end',
   pivot: 'Pivot',
   publication: 'Publication',
+};
+
+// Pictogramme de chaque type d'événement dans la chronologie.
+const EVENT_TYPE_ICONS: Record<EventType, IconName> = {
+  interview: 'mic',
+  meeting: 'users',
+  call: 'phone',
+  field_visit: 'pin',
+  document_analysis: 'file',
+  key_discovery: 'star',
+  dead_end: 'ban',
+  pivot: 'pivot',
+  publication: 'book',
 };
 
 const FOLLOW_UP_LABELS: Record<FollowUpStatus, string> = {
@@ -109,6 +123,7 @@ export function CaseDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
+  const [eventTypeFilter, setEventTypeFilter] = useState<EventType | null>(null);
   const [showCaseEditForm, setShowCaseEditForm] = useState(false);
   const [caseEditError, setCaseEditError] = useState<string | null>(null);
   const [showContributorForm, setShowContributorForm] = useState(false);
@@ -943,11 +958,62 @@ export function CaseDetailPage() {
       {events.length === 0 ? (
         <p className="empty-state">No events yet.</p>
       ) : (
-        <ul className="timeline">
-          {events.map((ev) =>
-            editingEventId === ev.id ? (
-              <li key={ev.id} className="timeline-item" data-event-type={ev.type}>
-                <form className="inline-form contact-form" onSubmit={(e) => handleUpdateEvent(e, ev.id)}>
+        <>
+          {events.length > 1 && (
+            <div className="tl-filters" role="toolbar" aria-label="Filter events by type">
+              <button
+                type="button"
+                className={eventTypeFilter === null ? 'is-on' : ''}
+                onClick={() => setEventTypeFilter(null)}
+                aria-pressed={eventTypeFilter === null}
+              >
+                All<small>{events.length}</small>
+              </button>
+              {(Object.keys(EVENT_TYPE_LABELS) as EventType[])
+                .filter((t) => events.some((ev) => ev.type === t))
+                .map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`t-${t}${eventTypeFilter === t ? ' is-on' : ''}`}
+                    onClick={() => setEventTypeFilter((cur) => (cur === t ? null : t))}
+                    aria-pressed={eventTypeFilter === t}
+                  >
+                    <i aria-hidden="true" />
+                    {EVENT_TYPE_LABELS[t]}
+                    <small>{events.filter((ev) => ev.type === t).length}</small>
+                  </button>
+                ))}
+            </div>
+          )}
+
+          {/* Chronologie alternée (maquette validée par Yv, nov. 2026) : axe central,
+              cartes à gauche / à droite, bloc date sur le bord droit, repère d'année. */}
+          <ol className="tl">
+            {(() => {
+              const visible = eventTypeFilter ? events.filter((ev) => ev.type === eventTypeFilter) : events;
+              let lastYear: number | null = null;
+              return visible.flatMap((ev, i) => {
+                const d = new Date(ev.eventDate);
+                const year = d.getFullYear();
+                const side = i % 2 === 0 ? 'is-left' : 'is-right';
+                const rows: ReactNode[] = [];
+                if (year !== lastYear) {
+                  lastYear = year;
+                  rows.push(
+                    <li key={`year-${ev.id}`} className="tl-year" aria-hidden="true">
+                      <span>{year}</span>
+                    </li>
+                  );
+                }
+                if (editingEventId === ev.id) {
+                  rows.push(
+                    <li key={ev.id} className={`tl-item ${side} t-${ev.type}`}>
+                      <span className="tl-dot" aria-hidden="true" />
+                      <article className="tl-card tl-card--edit">
+                        <div className="tl-body">
+                          <h3 className="tl-title">Edit event</h3>
+                          <form className="inline-form contact-form" onSubmit={(e) => handleUpdateEvent(e, ev.id)}>
                   <select name="type" required defaultValue={ev.type}>
                     {Object.entries(EVENT_TYPE_LABELS).map(([value, label]) => (
                       <option key={value} value={value}>
@@ -992,44 +1058,87 @@ export function CaseDetailPage() {
                     </button>
                   </div>
                 </form>
-              </li>
-            ) : (
-              <li key={ev.id} className="timeline-item" data-event-type={ev.type}>
-                <div className="timeline-date">{new Date(ev.eventDate).toLocaleString('en-US')}</div>
-                <div className="timeline-content">
-                  <strong>{EVENT_TYPE_LABELS[ev.type]}</strong>
-                  {ev.location && <span className="timeline-location"> · {ev.location}</span>}
-                  <span className="badge">{FOLLOW_UP_LABELS[ev.followUpStatus]}</span>
-                  {ev.reason && <p>{ev.reason}</p>}
-                  {ev.contactIds.length > 0 && (
-                    <p className="timeline-location">
-                      Contacts:{' '}
-                      {ev.contactIds
-                        .map((id) => linkedContacts.find((c) => c.id === id)?.fullName ?? `#${id}`)
-                        .join(', ')}
-                    </p>
-                  )}
-                  {canEditCase && (
-                    <div className="contributor-actions">
-                      <button type="button" className="btn-secondary" onClick={() => setEditingEventId(ev.id)}>
-                        Edit
-                      </button>
-                      {isLead && (
-                        <button
-                          type="button"
-                          className="btn-danger-small"
-                          onClick={() => handleDeleteEvent(ev.id)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </li>
-            )
-          )}
-        </ul>
+                        </div>
+                      </article>
+                    </li>
+                  );
+                  return rows;
+                }
+                const contactNames = ev.contactIds.map(
+                  (id) => linkedContacts.find((c) => c.id === id)?.fullName ?? `#${id}`
+                );
+                rows.push(
+                  <li key={ev.id} className={`tl-item ${side} t-${ev.type}`}>
+                    <span className="tl-dot" aria-hidden="true" />
+                    <article className="tl-card">
+                      <div className="tl-body">
+                        <div className="tl-head">
+                          <span className="tl-ic" aria-hidden="true">
+                            <Icon name={EVENT_TYPE_ICONS[ev.type]} size={18} />
+                          </span>
+                          <div>
+                            <h3 className="tl-title">{EVENT_TYPE_LABELS[ev.type]}</h3>
+                            {ev.location && (
+                              <p className="tl-loc">
+                                <Icon name="pin" size={14} />
+                                {ev.location}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        {ev.reason && <p className="tl-text">{ev.reason}</p>}
+                        {contactNames.length > 0 && (
+                          <div className="tl-people">
+                            <span className="tl-avatars">
+                              {contactNames.map((n, k) => (
+                                <span key={`${n}-${k}`} title={n}>{initials(n)}</span>
+                              ))}
+                            </span>
+                            <small>{contactNames.join(', ')}</small>
+                          </div>
+                        )}
+                        <div className="tl-meta">
+                          <span className={`tl-follow is-${ev.followUpStatus}`}>{FOLLOW_UP_LABELS[ev.followUpStatus]}</span>
+                          {(ev.sensitivity === 'confidential' || ev.sensitivity === 'highly_sensitive') && (
+                            <span className={`tl-sens is-${ev.sensitivity}`}>
+                              <Icon name="lock" size={13} />
+                              {ev.sensitivity === 'highly_sensitive' ? 'Highly sensitive' : 'Confidential'}
+                            </span>
+                          )}
+                        </div>
+                        {canEditCase && (
+                          <div className="tl-actions">
+                            <button type="button" onClick={() => setEditingEventId(ev.id)} aria-label="Edit event" title="Edit event">
+                              <Icon name="edit" size={14} />
+                            </button>
+                            {isLead && (
+                              <button
+                                type="button"
+                                className="is-danger"
+                                onClick={() => handleDeleteEvent(ev.id)}
+                                aria-label="Delete event"
+                                title="Delete event"
+                              >
+                                <Icon name="trash" size={14} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <time className="tl-date" dateTime={ev.eventDate}>
+                        <span>{d.toLocaleDateString('en-GB', { month: 'short' })}</span>
+                        <b>{String(d.getDate()).padStart(2, '0')}</b>
+                        <span>{year}</span>
+                        <small>{d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</small>
+                      </time>
+                    </article>
+                  </li>
+                );
+                return rows;
+              });
+            })()}
+          </ol>
+        </>
       )}
 
       <div className="page-toolbar">

@@ -114,10 +114,10 @@ export function NotificationsBell() {
       <button
         type="button"
         onClick={handleToggle}
-        className="ws-circle notifications-bell-toggle"
+        className="sh-rail-btn notifications-bell-toggle"
         aria-label="Notifications"
       >
-        <Icon name="bell" size={17} />
+        <Icon name="bell" size={20} />
         {unreadCount > 0 && <span className="notifications-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>}
       </button>
       {open && (
